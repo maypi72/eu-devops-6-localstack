@@ -6,7 +6,7 @@ services:
   # ==========================================
   localstack:
     container_name: localstack
-    image: localstack/localstack:3.0
+    image: localstack/localstack:latest
     ports:
       - "4566:4566" # LocalStack Gateway
       - "4510-4559:4510-4559" # Servicios externos
