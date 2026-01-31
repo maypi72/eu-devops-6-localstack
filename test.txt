@@ -1,0 +1,57 @@
+#TABLAS DYNAMODB
+#Tabla 1: la-huella-comments
+awslocal dynamodb create-table \
+  --table-name la-huella-comments \
+  --attribute-definitions \
+      AttributeName=id,AttributeType=S \
+      AttributeName=productId,AttributeType=S \
+      AttributeName=createdAt,AttributeType=S \
+  --key-schema AttributeName=id,KeyType=HASH \
+  --global-secondary-indexes '[
+      {
+        "IndexName": "ProductIndex",
+        "KeySchema": [
+          { "AttributeName": "productId", "KeyType": "HASH" },
+          { "AttributeName": "createdAt", "KeyType": "RANGE" }
+        ],
+        "Projection": { "ProjectionType": "ALL" },
+        "ProvisionedThroughput": {
+          "ReadCapacityUnits": 5,
+          "WriteCapacityUnits": 5
+        }
+      }
+    ]' \
+  --provisioned-throughput ReadCapacityUnits=5,WriteCapacityUnits=5
+
+#Tabla 2: la-huella-products
+awslocal dynamodb create-table \
+  --table-name la-huella-products \
+  --attribute-definitions \
+      AttributeName=id,AttributeType=S \
+      AttributeName=category,AttributeType=S \
+  --key-schema AttributeName=id,KeyType=HASH \
+  --global-secondary-indexes '[
+      {
+        "IndexName": "CategoryIndex",
+        "KeySchema": [
+          { "AttributeName": "category", "KeyType": "HASH" }
+        ],
+        "Projection": { "ProjectionType": "ALL" },
+        "ProvisionedThroughput": {
+          "ReadCapacityUnits": 5,
+          "WriteCapacityUnits": 5
+        }
+      }
+    ]' \
+  --provisioned-throughput ReadCapacityUnits=5,WriteCapacityUnits=5
+
+  #Tabla 3: la-huella-analytics
+  awslocal dynamodb create-table \
+  --table-name la-huella-analytics \
+  --attribute-definitions \
+      AttributeName=id,AttributeType=S \
+      AttributeName=date,AttributeType=S \
+  --key-schema \
+      AttributeName=id,KeyType=HASH \
+      AttributeName=date,KeyType=RANGE \
+  --provisioned-throughput ReadCapacityUnits=5,WriteCapacityUnits=5
