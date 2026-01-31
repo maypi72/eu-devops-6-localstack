@@ -1,3 +1,11 @@
+#Crear bucket
+awslocal s3 mb s3://la-huella-sentiment-reports
+awslocal s3 mb s3://la-huella-uploads
+
+#Aplicar política
+awslocal s3api put-bucket-policy  --bucket la-huella-uploads --policy file://public-read-policy.json
+
+
 #TABLAS DYNAMODB
 #Tabla 1: la-huella-comments
 awslocal dynamodb create-table \
@@ -55,3 +63,21 @@ awslocal dynamodb create-table \
       AttributeName=id,KeyType=HASH \
       AttributeName=date,KeyType=RANGE \
   --provisioned-throughput ReadCapacityUnits=5,WriteCapacityUnits=5
+
+
+#Cola de procesamiento
+awslocal sqs create-queue --queue-name la-huella-processing-queue
+#Cola de notificaciones
+awslocal sqs create-queue --queue-name la-huella-notifications-queue
+#Cola Dead Letter Queue (DLQ) — mensajes fallidos
+awslocal sqs create-queue --queue-name la-huella-processing-dlq
+#Verificar las colas: awslocal sqs list-queues
+
+#Crear **2 grupos de logs**:
+awslocal logs create-log-group --log-group-name /la-huella/sentiment-analysis
+awslocal logs create-log-group --log-group-name /la-huella/apiawslocal logs create-log-group --log-group-name /la-huella/sentiment-analysis
+awslocal logs create-log-group --log-group-name /la-huella/api
+
+awslocal logs create-log-group --log-group-name /la-huella/sentiment-analysis
+awslocal logs create-log-group --log-group-name /la-huella/api
+#verificar grupos de logs: awslocal logs describe-log-groups
