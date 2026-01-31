@@ -12,6 +12,7 @@ services:
       - "4510-4559:4510-4559" # Servicios externos
     environment:
       # Servicios AWS a activar
+      - SERVICES=s3,dynamodb,sqs,cloudwatch,logs,lambda
 
       # Configuración básica
       - DEBUG=1
@@ -20,16 +21,21 @@ services:
 
       # Persistencia de datos (opcional)
       - PERSISTENCE=1
-      - DATA_DIR=/tmp/localstack/data
+      #- DATA_DIR=/tmp/localstack/data
 
       # Configuración de red
       - HOSTNAME_EXTERNAL=localstack
       - HOSTNAME=localstack
-
+      
       # AWS Configuración
       - AWS_DEFAULT_REGION=eu-west-1
       - AWS_ACCESS_KEY_ID=test
       - AWS_SECRET_ACCESS_KEY=test
+
+      - LAMBDA_EXECUTOR=docker
+
+      - S3_SKIP_SIGNATURE_VALIDATION=1
+      - S3_ENABLE_URL_STYLE=path
     volumes:
       - "${LOCALSTACK_VOLUME_DIR:-./volume}:/var/lib/localstack"
       - "/var/run/docker.sock:/var/run/docker.sock"
