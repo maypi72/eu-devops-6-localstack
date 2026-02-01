@@ -87,7 +87,8 @@ export AWS_ACCESS_KEY_ID=test
 export AWS_SECRET_ACCESS_KEY=test
 export AWS_DEFAULT_REGION=eu-west-1
 
-#que hacemos con el directorio volume
+#que hacemos con el directorio volume, hemos hecho propietaro a manu en:
+Error: File was unable to be removed Error: EACCES: permission denied, rmdir '/home/manu/arlocalstack/_work/eu-devops-6-localstack/eu-devops-6-localstack/volume/cache'
 
 
 #NOTAS DEL ACCTION:
