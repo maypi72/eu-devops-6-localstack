@@ -37,40 +37,51 @@ jobs:
           docker --version
           docker compose version
 
-      - name: Parar contenedores si existen
-        run: |
-          docker compose down -v || true
+      # LIMPIEZA completa: contenedores + volúmenes (incluye el volumen nombrado de Localstack)
+      - name: Parar contenedores si existen (limpieza completa)
+        run: docker compose down -v || true
 
-      - name: Pull, actualizar a la lastest version de la imagen
-        run: |
-          docker compose pull
+      - name: Pull de imágenes (última versión)
+        run: docker compose pull
 
       - name: Start Localstack (docker-compose)
-        run: |
-          docker compose up -d
+        run: docker compose up -d
 
-      # Opción : sleep fijo
-      - name: Wait for Localstack (sleep)
+      # (Opcional) pequeño sleep inicial para dar tiempo al contenedor
+      - name: Wait for Localstack (short sleep)
         run: |
-         echo "Waiting ${LOCALSTACK_WAIT_SECONDS}s for Localstack to be ready..."
+          echo "Waiting ${LOCALSTACK_WAIT_SECONDS}s for Localstack to be ready..."
           sleep "${LOCALSTACK_WAIT_SECONDS}"
 
-      # Opción B: healthcheck ping. 
+      # Healthcheck robusto (recomendado)
       - name: Healthcheck Localstack (/_localstack/health)
         run: |
           set -e
           echo "Checking Localstack health endpoint..."
-          # 30 intentos, ~60s total
           for i in $(seq 1 30); do
             STATUS=$(curl -s http://${LOCALSTACK_HOST}:4566/_localstack/health || true)
             echo "Attempt $i: $STATUS"
-            # Consideramos ready cuando services.apis es true (LS >=1.0)
-            echo "$STATUS" | grep -q '"services":' && echo "$STATUS" | grep -q '"initialized": *true' && break
+            # Consideramos ready cuando 'initialized: true'
+            if echo "$STATUS" | grep -q '"services":' && echo "$STATUS" | grep -q '"initialized": *true'; then
+              echo "Localstack is ready!"
+              exit 0
+            fi
             sleep 2
           done
+          echo "❌ ERROR: Localstack no arrancó a tiempo"
+          exit 1
 
-      - name: Verificar si los scripts son ejecutables
+      # (Opcional) Diagnóstico si te vuelve a fallar alguna ruta
+      # - name: Mostrar árbol del repo
+      #   run: |
+      #     echo "PWD: $(pwd)"
+      #     ls -la
+      #     ls -la localstack-init || true
+
+      - name: Verificar si los scripts existen y son ejecutables
         run: |
+          test -f localstack-init/01-create-resources.sh || { echo "Falta localstack-init/01-create-resources.sh"; exit 1; }
+          test -f localstack-init/02-insert-sample-data.sh || { echo "Falta localstack-init/02-insert-sample-data.sh"; exit 1; }
           chmod +x localstack-init/01-create-resources.sh
           chmod +x localstack-init/02-insert-sample-data.sh
 
@@ -81,10 +92,7 @@ jobs:
           AWS_SECRET_ACCESS_KEY: ${{ env.AWS_SECRET_ACCESS_KEY }}
           AWS_DEFAULT_REGION: ${{ env.AWS_DEFAULT_REGION }}
           LOCALSTACK_ENDPOINT: ${{ env.LOCALSTACK_ENDPOINT }}
-        run: |
-          # Si tienes awslocal instalado en el runner, tus scripts pueden usarlo directamente.
-          # Si no, dentro de los scripts puedes hacer: aws --endpoint-url "$LOCALSTACK_ENDPOINT" <service> <cmd>
-          ./localstack-init/01-create-resources.sh
+        run: ./localstack-init/01-create-resources.sh
 
       - name: Insert sample data
         env:
@@ -92,8 +100,7 @@ jobs:
           AWS_SECRET_ACCESS_KEY: ${{ env.AWS_SECRET_ACCESS_KEY }}
           AWS_DEFAULT_REGION: ${{ env.AWS_DEFAULT_REGION }}
           LOCALSTACK_ENDPOINT: ${{ env.LOCALSTACK_ENDPOINT }}
-        run: |
-          ./localstack-init/02-insert-sample-data.sh
+        run: ./localstack-init/02-insert-sample-data.sh
 
       # --- Verificaciones ---
       # Preferencia: awslocal. Si no existe, fallback a aws --endpoint-url.
@@ -120,6 +127,7 @@ jobs:
           else
             aws --endpoint-url "${LOCALSTACK_ENDPOINT}" sqs list-queues || echo "No queues returned (could be empty)"
           fi
+
       - name: Verify CloudWatch Log Groups
         run: |
           echo "Checking CloudWatch log groups..."
@@ -128,4 +136,18 @@ jobs:
           else
             aws --endpoint-url "${LOCALSTACK_ENDPOINT}" logs describe-log-groups --log-group-name-prefix /la-huella/
           fi
-          
+
+      # Logs útiles si algo falla
+      - name: docker compose ps
+        if: always()
+        run: docker compose ps
+
+      - name: Localstack container logs (last 200 lines)
+        if: failure()
+        run: |
+          CONTAINER_ID=$(docker ps --format '{{.ID}} {{.Names}}' | awk '/localstack/{print $1; exit}')
+          if [ -n "$CONTAINER_ID" ]; then
+            docker logs --tail 200 "$CONTAINER_ID"
+          else
+            echo "Localstack container not found by name; check compose service name."
+          fi
