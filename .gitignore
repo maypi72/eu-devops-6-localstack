@@ -6,5 +6,4 @@ volume/cache/service-catalog-3_0_2-1_32_5.pickle
 volume/state/dynamodb/000000000000_eu-west-1.db
 volume/state/dynamodb/000000000000euwest1_eu-west-1.db
 localstack-init/01-setup-resources.sh
-localstack-init/01-create-resources.sh
 #.github/workflows/deploy.yml
