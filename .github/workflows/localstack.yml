@@ -1,0 +1,131 @@
+name: localstack
+
+on:
+  push:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+# Evita solapes: si se lanza otra ejecución para la misma rama, cancela la anterior
+concurrency:
+  group: localstack-${{ github.ref }}
+  cancel-in-progress: true
+
+# Permisos mínimos (ajusta si necesitas más)
+permissions:
+  contents: read
+
+jobs:
+  up-localstack:
+    runs-on: [self-hosted, Linux]
+
+    env:
+      # Credenciales para Localstack (requeridas por AWS CLI)
+      AWS_ACCESS_KEY_ID: test
+      AWS_SECRET_ACCESS_KEY: test
+      AWS_DEFAULT_REGION: eu-west-1
+      LOCALSTACK_HOST: localhost
+      LOCALSTACK_ENDPOINT: http://localhost:4566
+      # Tiempo de espera
+      LOCALSTACK_WAIT_SECONDS: "60"
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Mostrar versiones Docker y plugin compose
+        run: |
+          docker --version
+          docker compose version
+
+      - name: Parar contenedores si existen
+        run: |
+          docker compose down -v || true
+
+      - name: Pull, actualizar a la lastest version de la imagen
+        run: |
+          docker compose pull
+
+      - name: Start Localstack (docker-compose)
+        run: |
+          docker compose up -d
+
+      # Opción : sleep fijo
+      - name: Wait for Localstack (sleep)
+        run: |
+         echo "Waiting ${LOCALSTACK_WAIT_SECONDS}s for Localstack to be ready..."
+          sleep "${LOCALSTACK_WAIT_SECONDS}"
+
+      # Opción B: healthcheck ping. 
+      - name: Healthcheck Localstack (/_localstack/health)
+        run: |
+          set -e
+          echo "Checking Localstack health endpoint..."
+          # 30 intentos, ~60s total
+          for i in $(seq 1 30); do
+            STATUS=$(curl -s http://${LOCALSTACK_HOST}:4566/_localstack/health || true)
+            echo "Attempt $i: $STATUS"
+            # Consideramos ready cuando services.apis es true (LS >=1.0)
+            echo "$STATUS" | grep -q '"services":' && echo "$STATUS" | grep -q '"initialized": *true' && break
+            sleep 2
+          done
+
+      - name: Verificar si los scripts son ejecutables
+        run: |
+          chmod +x localstack-init/01-create-resources.sh
+          chmod +x localstack-init/02-insert-sample-data.sh
+
+      # Exportar variables para que los scripts puedan usar AWS CLI contra Localstack
+      - name: Create AWS resources (buckets, tables, queues, logs)
+        env:
+          AWS_ACCESS_KEY_ID: ${{ env.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ env.AWS_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: ${{ env.AWS_DEFAULT_REGION }}
+          LOCALSTACK_ENDPOINT: ${{ env.LOCALSTACK_ENDPOINT }}
+        run: |
+          # Si tienes awslocal instalado en el runner, tus scripts pueden usarlo directamente.
+          # Si no, dentro de los scripts puedes hacer: aws --endpoint-url "$LOCALSTACK_ENDPOINT" <service> <cmd>
+          ./localstack-init/01-create-resources.sh
+
+      - name: Insert sample data
+        env:
+          AWS_ACCESS_KEY_ID: ${{ env.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ env.AWS_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: ${{ env.AWS_DEFAULT_REGION }}
+          LOCALSTACK_ENDPOINT: ${{ env.LOCALSTACK_ENDPOINT }}
+        run: |
+          ./localstack-init/02-insert-sample-data.sh
+
+      # --- Verificaciones ---
+      # Preferencia: awslocal. Si no existe, fallback a aws --endpoint-url.
+      - name: Verify S3 buckets
+        run: |
+          if command -v awslocal >/dev/null 2>&1; then
+            awslocal s3 ls
+          else
+            aws --endpoint-url "${LOCALSTACK_ENDPOINT}" s3 ls
+          fi
+
+      - name: Verify DynamoDB tables
+        run: |
+          if command -v awslocal >/dev/null 2>&1; then
+            awslocal dynamodb list-tables
+          else
+            aws --endpoint-url "${LOCALSTACK_ENDPOINT}" dynamodb list-tables
+          fi
+
+      - name: Verify SQS queues
+        run: |
+          if command -v awslocal >/dev/null 2>&1; then
+            awslocal sqs list-queues || echo "No queues returned (could be empty)"
+          else
+            aws --endpoint-url "${LOCALSTACK_ENDPOINT}" sqs list-queues || echo "No queues returned (could be empty)"
+          fi
+      - name: Verify CloudWatch Log Groups
+        run: |
+          echo "Checking CloudWatch log groups..."
+          if command -v awslocal >/dev/null 2>&1; then
+            awslocal logs describe-log-groups --log-group-name-prefix /la-huella/
+          else
+            aws --endpoint-url "${LOCALSTACK_ENDPOINT}" logs describe-log-groups --log-group-name-prefix /la-huella/
+          fi
+          
