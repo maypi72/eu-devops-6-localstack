@@ -81,3 +81,38 @@ awslocal logs create-log-group --log-group-name /la-huella/api
 awslocal logs create-log-group --log-group-name /la-huella/sentiment-analysis
 awslocal logs create-log-group --log-group-name /la-huella/api
 #verificar grupos de logs: awslocal logs describe-log-groups
+
+#  EXPORTAR CREDENCIALES DUMMY
+export AWS_ACCESS_KEY_ID=test
+export AWS_SECRET_ACCESS_KEY=test
+export AWS_DEFAULT_REGION=eu-west-1
+
+#NOTAS DEL ACCTION:
+# Logs útiles si algo falla
+      - name: docker compose ps
+        if: always()
+        run: docker compose ps
+
+      - name: Localstack container logs (last 200 lines)
+        if: failure()
+        run: |
+          # Ajusta el nombre del servicio si no se llama "localstack"
+          CONTAINER_ID=$(docker ps --format '{{.ID}} {{.Names}}' | awk '/localstack/{print $1; exit}')
+          if [ -n "$CONTAINER_ID" ]; then
+            docker logs --tail 200 "$CONTAINER_ID"
+          else
+            echo "Localstack container not found by name; check compose service name."
+          fi
+
+      - name: Dump docker compose logs to artifact
+        if: failure()
+        run: |
+          mkdir -p artifacts
+          docker compose logs --no-color > artifacts/compose.logs.txt || true
+
+      - name: Upload logs artifact
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: localstack-logs
+          path: artifacts/compose.logs.txt
