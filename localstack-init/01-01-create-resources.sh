@@ -1,6 +1,11 @@
 #!/usr/bin/env bash
 set -e
 
+# Configuración de variables
+REGION="eu-west-1"
+ENDPOINT="http://localhost:4566"
+
+
 echo "=== Creando buckets S3 ==="
 
 awslocal s3 mb s3://la-huella-sentiment-reports
