@@ -5,12 +5,12 @@ on:
     branches: [ "main" ]
   workflow_dispatch:
 
-# Evita solapes: si se lanza otra ejecución para la misma rama, cancela la anterior
+# Evitar solapamiento
 concurrency:
   group: localstack-${{ github.ref }}
   cancel-in-progress: true
 
-# Permisos mínimos (ajusta si necesitas más)
+# Permisos mínimos del workflow
 permissions:
   contents: read
 
@@ -20,8 +20,8 @@ jobs:
 
     env:
       # Credenciales para Localstack (requeridas por AWS CLI)
-      AWS_ACCESS_KEY_ID: test
-      AWS_SECRET_ACCESS_KEY: test
+      AWS_ACCESS_KEY_ID: ${{AWS_ACCESS_KEY_ID}}
+      AWS_SECRET_ACCESS_KEY: ${{AWS_SECRET_ACCESS_KEY}}
       AWS_DEFAULT_REGION: eu-west-1
       LOCALSTACK_HOST: localhost
       LOCALSTACK_ENDPOINT: http://localhost:4566
@@ -37,7 +37,7 @@ jobs:
           docker --version
           docker compose version
 
-      # LIMPIEZA completa: contenedores + volúmenes (incluye el volumen nombrado de Localstack)
+      # LIMPIEZA completa: contenedores + volúmenes
       - name: Parar contenedores si existen (limpieza completa)
         run: docker compose down -v || true
 
@@ -47,7 +47,7 @@ jobs:
       - name: Start Localstack (docker-compose)
         run: docker compose up -d
 
-      # (Opcional) pequeño sleep inicial para dar tiempo al contenedor
+      # Espera activa establecida para esperar a que levante localstack
       - name: Wait for Localstack (short sleep)
         run: |
           echo "Waiting ${LOCALSTACK_WAIT_SECONDS}s for Localstack to be ready..."
@@ -112,17 +112,3 @@ jobs:
             aws --endpoint-url "${LOCALSTACK_ENDPOINT}" logs describe-log-groups --log-group-name-prefix /la-huella/
           fi
 
-      # Logs útiles si algo falla
-      - name: docker compose ps
-        if: always()
-        run: docker compose ps
-
-      - name: Localstack container logs (last 200 lines)
-        if: failure()
-        run: |
-          CONTAINER_ID=$(docker ps --format '{{.ID}} {{.Names}}' | awk '/localstack/{print $1; exit}')
-          if [ -n "$CONTAINER_ID" ]; then
-            docker logs --tail 200 "$CONTAINER_ID"
-          else
-            echo "Localstack container not found by name; check compose service name."
-          fi
