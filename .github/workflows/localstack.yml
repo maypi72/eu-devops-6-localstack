@@ -52,32 +52,7 @@ jobs:
         run: |
           echo "Waiting ${LOCALSTACK_WAIT_SECONDS}s for Localstack to be ready..."
           sleep "${LOCALSTACK_WAIT_SECONDS}"
-
-      # Healthcheck robusto (recomendado)
-      - name: Healthcheck Localstack (/_localstack/health)
-        run: |
-          set -e
-          echo "Checking Localstack health endpoint..."
-          for i in $(seq 1 30); do
-            STATUS=$(curl -s http://${LOCALSTACK_HOST}:4566/_localstack/health || true)
-            echo "Attempt $i: $STATUS"
-            # Consideramos ready cuando 'initialized: true'
-            if echo "$STATUS" | grep -q '"services":' && echo "$STATUS" | grep -q '"initialized": *true'; then
-              echo "Localstack is ready!"
-              exit 0
-            fi
-            sleep 2
-          done
-          echo "❌ ERROR: Localstack no arrancó a tiempo"
-          exit 1
-
-      # (Opcional) Diagnóstico si te vuelve a fallar alguna ruta
-      # - name: Mostrar árbol del repo
-      #   run: |
-      #     echo "PWD: $(pwd)"
-      #     ls -la
-      #     ls -la localstack-init || true
-
+     
       - name: Verificar si los scripts existen y son ejecutables
         run: |
           test -f localstack-init/01-create-resources.sh || { echo "Falta localstack-init/01-create-resources.sh"; exit 1; }
